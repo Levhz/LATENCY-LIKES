@@ -54,12 +54,14 @@ async def process_like(user_id: int, region: str, target: str, amount: int) -> d
 
         try:
             res = await pool.like_many(target, amount, region)
-        except LikeError:
+        except LikeError as e:
             db.refund(user_id, cost)
+            db.log_like(user_id, target, 0, 0, None, str(e))
             raise
         except Exception as e:
             db.refund(user_id, cost)
-            raise LikeError(f"Server error: {e}")
+            db.log_like(user_id, target, 0, 0, None, str(e))
+            raise LikeError(str(e))
 
         if res["ok"] == 0:
             db.refund(user_id, cost)
