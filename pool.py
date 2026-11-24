@@ -9,7 +9,6 @@ import guestgen
 from utils import today_str, now_iso
 
 _reg_lock = asyncio.Lock()
-_last_reg = 0.0
 
 
 class LikeError(Exception):
@@ -25,7 +24,7 @@ class Pool:
     async def start(self):
         self._slots = asyncio.Semaphore(config.POOL_CREATE_CONCURRENCY)
         await asyncio.to_thread(guestgen.ensure_ready)
-        await self.warm(config.POOL_MIN)
+        await self.warm(config.POOL_MIN, config.DEFAULT_REGION)
         self._task = asyncio.create_task(self._loop())
 
     async def stop(self):
@@ -54,39 +53,39 @@ class Pool:
                 db.set_guest(row["id"], likes_today=0, day=day)
             if row["status"] == "busy" and (row["last_used"] or "")[:16] < now[:16]:
                 db.set_guest(row["id"], status="ready")
-        await self.warm(config.POOL_TARGET)
+        await self.warm(config.POOL_TARGET, config.DEFAULT_REGION)
 
-    async def warm(self, target: int):
-        have = db.ready_count(config.DEFAULT_REGION, config.ACCOUNT_DAILY_CAP, today_str())
+    async def warm(self, target: int, region: str = None):
+        reg = (region or config.DEFAULT_REGION).upper()
+        if not guestgen.supported(reg):
+            reg = config.DEFAULT_REGION
+        have = db.ready_count(reg, config.ACCOUNT_DAILY_CAP, today_str())
         for _ in range(max(0, target - have - self._creating)):
-            asyncio.create_task(self._create_safe(config.DEFAULT_REGION))
+            asyncio.create_task(self._create_safe(reg))
 
     async def _create_safe(self, region: str):
+        if self._slots is None:
+            self._slots = asyncio.Semaphore(config.POOL_CREATE_CONCURRENCY)
         async with self._slots:
             self._creating += 1
             try:
-                await self._create(region, retries=3)
+                await self._create(region, retries=2)
             except Exception:
                 pass
             finally:
                 self._creating -= 1
 
     async def _create(self, region: str, retries: int = 1) -> int:
-        global _last_reg
         last = None
         for attempt in range(retries):
             async with _reg_lock:
-                gap = config.REG_GAP - (asyncio.get_running_loop().time() - _last_reg)
-                if gap > 0:
-                    await asyncio.sleep(gap)
                 try:
                     acc = await asyncio.to_thread(guestgen.create, region)
                 except Exception as e:
                     last = e
-                    _last_reg = asyncio.get_running_loop().time()
-                    await asyncio.sleep(5 + attempt * 5)
+                    if attempt < retries - 1:
+                        await asyncio.sleep(3 + attempt * 3)
                     continue
-                _last_reg = asyncio.get_running_loop().time()
 
             gid = db.add_guest(acc["uid"], acc["password"], json.dumps({}), region)
             jwt = acc.get("jwt") or ""
@@ -102,7 +101,7 @@ class Pool:
             db.set_guest(gid, status="ready", jwt=jwt,
                          account_id=acc.get("account_id") or "")
             return gid
-        raise RuntimeError(f"create failed: {last}")
+        raise LikeError(f"Guest account generation failed for {region}: {last}")
 
     async def refresh(self, row: dict) -> dict:
         jwt = await asyncio.to_thread(
@@ -116,14 +115,17 @@ class Pool:
         db.set_guest(row["id"], status=status, fails=fails)
 
     async def acquire(self, region: str) -> dict:
-        row = db.claim_guest(region, config.ACCOUNT_DAILY_CAP, today_str())
+        reg = region.upper()
+        row = db.claim_guest(reg, config.ACCOUNT_DAILY_CAP, today_str())
         if row:
             return row
-        gid = await self._create(region, retries=2)
+        gid = await self._create(reg, retries=2)
         db.set_guest(gid, status="busy")
         return db.get_guest(gid)
 
     def release(self, row: dict, ok: int):
+        if not row:
+            return
         status = "dead" if (row.get("fails") or 0) >= config.ACCOUNT_MAX_FAILS else "ready"
         db.set_guest(row["id"], status=status, last_used=now_iso())
         if ok:
@@ -167,6 +169,8 @@ class Pool:
             after = await asyncio.to_thread(ffclient.profile, row["jwt"], region, target) or {}
             return {"ok": ok, "guest": row["uid"], "nickname": before.get("nickname"),
                     "before": before.get("likes"), "after": after.get("likes")}
+        except LikeError:
+            raise
         except Exception:
             await self.mark_failed(row)
             raise
