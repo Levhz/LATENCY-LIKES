@@ -42,7 +42,6 @@ ACCOUNT_MAX_FAILS = int(os.getenv("ACCOUNT_MAX_FAILS", "3"))
 LIKE_GAP = float(os.getenv("LIKE_GAP", "0.35"))
 CMD_COOLDOWN = float(os.getenv("CMD_COOLDOWN", "5"))
 
-GUEST_ENGINE = os.getenv("GUEST_ENGINE", "najmi").strip().lower()
 NAJMI_NAME_PREFIX = os.getenv("NAJMI_NAME_PREFIX", "LatencyZ")
 NAJMI_USE_TOR = os.getenv("NAJMI_USE_TOR", "1") != "0"
 NAJMI_PROXY = os.getenv("NAJMI_PROXY", "").strip()
