@@ -104,15 +104,18 @@ def create(region: str, name_prefix: str = "") -> dict:
     ensure_ready()
 
     with _gen_lock:
-        gap = config.REG_GAP - (time.time() - _last)
+        gap = config.REG_GAP - (time.monotonic() - _last)
         if gap > 0:
             time.sleep(gap)
-        _last = time.time()
+        _last = time.monotonic()
         acc = _call_create(region, name_prefix or config.NAJMI_NAME_PREFIX,
                            region == GHOST_REGION)
 
     if not acc or not acc.get("uid"):
-        raise RuntimeError("generator returned no account")
+        proxy_mode = f"proxy={gen.tOr_sOcKs_pRoXy}" if gen.uSe_tOr_PrOxY else "direct"
+        raise RuntimeError(
+            f"generator returned no account for region={region} ({proxy_mode}, server={gen.sErVeR_GlObAl})"
+        )
     return {
         "uid": str(acc["uid"]),
         "password": str(acc["password"]),
