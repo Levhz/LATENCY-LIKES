@@ -1,9 +1,10 @@
 """Non-interactive adapter around najmi_gen.
 
 The build is menu-driven and keeps state in module globals, so it is never
-edited — only its globals are rebound before first use. Locking, pacing and a
-stable return shape live here.
+edited — only its globals are rebound before first use. Locking, pacing, a
+stable return shape and signature detection live here.
 """
+import inspect
 import os
 import threading
 import time
@@ -16,6 +17,28 @@ _state_lock = threading.Lock()
 _ready = threading.Event()
 _started = False
 _last = 0.0
+
+GHOST_REGION = getattr(gen, "gHoSt_MoDe_rEgIoN", "BR")
+
+
+def _make_caller():
+    """Pick how to invoke cReAtE_aCcOuNt based on what it actually accepts."""
+    try:
+        params = inspect.signature(gen.cReAtE_aCcOuNt).parameters
+    except (ValueError, TypeError):
+        params = {}
+
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return lambda r, n, g: gen.cReAtE_aCcOuNt(r, n, is_ghost=g)
+
+    for key in ("is_ghost", "iS_gHoSt", "ghost", "iS_gHoSt_mOdE"):
+        if key in params:
+            return lambda r, n, g, k=key: gen.cReAtE_aCcOuNt(r, n, **{k: g})
+
+    return lambda r, n, g: gen.cReAtE_aCcOuNt(r, n)
+
+
+_call_create = _make_caller()
 
 
 def supported(region: str) -> bool:
@@ -39,7 +62,8 @@ def _apply_network():
         gen.tOr_sOcKs_pRoXy = config.NAJMI_PROXY
         gen.uSe_tOr_PrOxY = True
         return
-    gen.TOR_SETUP_TIMEOUT = config.NAJMI_TOR_TIMEOUT
+    if hasattr(gen, "TOR_SETUP_TIMEOUT"):
+        gen.TOR_SETUP_TIMEOUT = config.NAJMI_TOR_TIMEOUT
     if not config.NAJMI_USE_TOR:
         gen.uSe_tOr_PrOxY = False
         return
@@ -65,6 +89,7 @@ def ensure_ready() -> bool:
             pass
         if gen.uSe_tOr_PrOxY and not gen.sTaRt_tOr():
             gen.uSe_tOr_PrOxY = False
+        print(f"[guestgen] engine ready, create signature: {inspect.signature(gen.cReAtE_aCcOuNt)}")
     finally:
         _ready.set()
     return True
@@ -83,8 +108,8 @@ def create(region: str, name_prefix: str = "") -> dict:
         if gap > 0:
             time.sleep(gap)
         _last = time.time()
-        acc = gen.cReAtE_aCcOuNt(region, name_prefix or config.NAJMI_NAME_PREFIX,
-                                 is_ghost=(region == gen.gHoSt_MoDe_rEgIoN))
+        acc = _call_create(region, name_prefix or config.NAJMI_NAME_PREFIX,
+                           region == GHOST_REGION)
 
     if not acc or not acc.get("uid"):
         raise RuntimeError("generator returned no account")
