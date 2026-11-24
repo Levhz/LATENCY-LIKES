@@ -3,6 +3,8 @@ from zoneinfo import ZoneInfo
 
 import config
 
+REGION_ALIAS = {"IN": "IND", "IDN": "ID", "RU": "CIS"}
+
 
 def today_str() -> str:
     return datetime.now(ZoneInfo(config.DAY_TZ)).strftime("%Y-%m-%d")
@@ -23,3 +25,8 @@ def now_iso() -> str:
 def clean_uid(raw: str):
     s = "".join(c for c in str(raw).strip() if c.isdigit())
     return s if 5 <= len(s) <= 12 else None
+
+
+def norm_region(value) -> str:
+    s = str(value).strip().upper()
+    return REGION_ALIAS.get(s, s)
