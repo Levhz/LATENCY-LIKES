@@ -31,7 +31,7 @@ COST_PER_CMD = int(os.getenv("COST_PER_CMD", "10"))
 COST_PER_LIKE = int(os.getenv("COST_PER_LIKE", "0"))
 DAILY_LIMIT = int(os.getenv("DAILY_LIMIT", "100"))
 MAX_AMOUNT = int(os.getenv("MAX_AMOUNT", "100"))
-WELCOME_CREDITS = int(os.getenv("WELCOME_CREDITS", "50"))
+WELCOME_CREDITS = int(os.getenv("WELCOME_CREDITS", "0"))
 
 POOL_TARGET = int(os.getenv("POOL_TARGET", "5"))
 POOL_MIN = int(os.getenv("POOL_MIN", "2"))
