@@ -92,6 +92,13 @@ async def status():
             "tor": guestgen.gen.uSe_tOr_PrOxY}
 
 
+@app.get("/api/whoami")
+async def api_whoami(discord_id: int, _=Depends(api_auth)):
+    u = db.ensure_user(discord_id)
+    return {"discord_id": discord_id, "credits": u["credits"],
+            "admin": discord_id in config.ADMIN_IDS}
+
+
 @app.get("/api/profile/{uid}")
 async def profile(uid: str, region: str = config.DEFAULT_REGION, _=Depends(api_auth)):
     try:
