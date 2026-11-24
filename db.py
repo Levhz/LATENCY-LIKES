@@ -76,12 +76,21 @@ def settings() -> dict:
 
 
 def ensure_user(discord_id: int) -> dict:
+    default_credits = max(0, int(config.WELCOME_CREDITS))
     with _lock:
         _conn.execute("INSERT OR IGNORE INTO users(discord_id, credits, created) "
-                      "VALUES(?,?,?)", (discord_id, config.WELCOME_CREDITS, now_iso()))
+                      "VALUES(?,?,?)", (discord_id, default_credits, now_iso()))
         _conn.commit()
         return dict(_conn.execute("SELECT * FROM users WHERE discord_id=?",
                                   (discord_id,)).fetchone())
+
+
+def reset_all_credits(value: int = 0) -> int:
+    val = max(0, int(value))
+    with _lock:
+        cur = _conn.execute("UPDATE users SET credits=?", (val,))
+        _conn.commit()
+        return cur.rowcount
 
 
 def get_user(discord_id: int):
