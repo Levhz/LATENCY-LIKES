@@ -1,0 +1,12 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+NAJMI_FF_EXPERIMENT/
+live_config_cache.json
+*.db
+*.db-wal
+*.db-shm
+debug.log
