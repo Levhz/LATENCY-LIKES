@@ -1,0 +1,4 @@
+# one per line, any of these formats
+# host:port
+# host:port:user:pass
+# http://user:pass@host:port
