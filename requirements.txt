@@ -1,0 +1,9 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+discord.py==2.4.0
+requests==2.32.3
+pycryptodome==3.21.0
+python-dotenv==1.0.1
+colorama==0.4.6
+psutil==6.1.0
+PySocks==1.7.1
